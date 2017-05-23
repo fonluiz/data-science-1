@@ -1,0 +1,12 @@
+---
+title: "Um bom exemplo de análise"
+author: "Luiz Alberto Fonseca"
+date: "23 de maio de 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+O site [League of Graphs](http://www.leagueofgraphs.com/pt/) traz análises sobre os dados do famoso jogo online League of Legends
