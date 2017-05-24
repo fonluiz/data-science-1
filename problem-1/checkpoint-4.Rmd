@@ -1,0 +1,26 @@
+---
+title: "Analisando séries de Televisão"
+author: "Luiz Alberto Fonseca"
+date: "24 de maio de 2017"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 5
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Qual o objetivo?
+
+Para esta análise iremos continuar utilizando dados do [IMDB](http://www.imdb.com/) conformes descritos anteriormente neste [link](https://fonluiz.github.io/ad1/lab1/checkpoint-1.html).
+
+O objetivo é responder as perguntas abaixo, embasando minhas respostas em análises dos dados:
+
+Pergunta 1: Existe alguma relação entre a sequência de um episódio na temporada e a sua nota?
+Pergunta 2: Uma série com mais episódios é mais bem avaliada do que uma série com menos episódios?
+
+Ao longo deste relatório irei explicar e explorar os atributos que utilizarei para responder às questões.
+
