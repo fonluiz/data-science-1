@@ -6,21 +6,33 @@ output:
   html_document:
     toc: true
     toc_float: true
-    toc_depth: 5
+    toc_depth: 4
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
 ### Qual o objetivo?
 
-Para esta análise iremos continuar utilizando dados do [IMDB](http://www.imdb.com/) conformes descritos anteriormente neste [link](https://fonluiz.github.io/ad1/lab1/checkpoint-1.html).
+Para esta análise iremos continuar utilizando dados do [IMDB](http://www.imdb.com/) sobre séries de televisão conforme descritos anteriormente neste [link](https://fonluiz.github.io/ad1/lab1/checkpoint-1.html).
 
 O objetivo é responder as perguntas abaixo, embasando minhas respostas em análises dos dados:
 
 Pergunta 1: Existe alguma relação entre a sequência de um episódio na temporada e a sua nota?
 Pergunta 2: Uma série com mais episódios é mais bem avaliada do que uma série com menos episódios?
 
-Ao longo deste relatório irei explicar e explorar os atributos que utilizarei para responder às questões.
+Ao longo deste relatório irei explicar e explorar os atributos que utilizarei para responder às questões. Mas de uma forma geral, dentre as informações sobre as séries, temos o nome da série, o nome de cada episódio, a temporada correspondente a cada episódio, a nota para cada episódio, o número de votos e algumas outras que serão comentadas mais adiante.
+
+Diferentemente da análise anterior, nesta irei utilizar todas as séries presentes nos dados.
+
+### Pergunta 1
+#### Existe alguma relação entre a sequência de um episódio na temporada e a sua nota?
+
+```{r}
+# Lendo os dados
+dados_series <- read_csv("series_from_imdb.csv")
+```
+
+
 

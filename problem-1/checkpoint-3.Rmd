@@ -16,14 +16,14 @@ Acredito que não. Acho que é uma correlação bastante fraca pois, para uma te
 Acredito que há uma fraca corrrelação entre esses dois quesitos, pois há séries que possuem menos episódios pois são canceladas por falta de audiência e em contrapartida uma série com bastante episódios deve ser bastante popular. Entretanto acho que não iremos encontrar uma resposta convicta utilizando apenas as séries dos dados fornecidos.
 
 3) Para séries que foram finalizadas, a temporada final recebe notas maiores ou menores do que a temporada inicial?
-R: Acho que não há um padrão nisso. Acho que depende mais da qualidade de cada temporada do que da sequência.
+Acho que não há um padrão nisso. Acho que depende mais da qualidade de cada temporada do que da sequência.
 
 4) Que tipo de episódio é mais votado? Os ruins, os bons ou os medianos?
-R: Acredito que a quantidade de votos independete da qualidade do episódio.
+Acredito que a quantidade de votos independete da qualidade do episódio.
 
 5) Existe alguma relação entre o tamanho do nome da série e sua popularidade?
-R: Acho que não existe.
+Acho que não existe.
 
 6) Séries com mais temporadas recebem mais votos?
-R Acredito que sim. Séries com mais temporadas são mais antigas, possuem maior tempo de avaliação e provavelmente mais votos.
+Acredito que sim. Séries com mais temporadas são mais antigas, possuem maior tempo de avaliação e provavelmente mais votos.
 
