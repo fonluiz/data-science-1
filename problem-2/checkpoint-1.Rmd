@@ -9,8 +9,175 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+Variávies utilizadas: séries, notas, temporadas, sequencia dos episódios
+
+Importância das variáveis:
+1) notas
+2) sequencia de episódios
+3) temporadas
+4) séries
+
+Removendo inconsistência
+```{r}
+library(tidyverse)
+
+# Lendo os dados
+dados.series <- read_csv("../data/series_from_imdb.csv")
+
+# Séries com mais de oito temporadas
+series.mais.que.oito.temp <- dados.series %>%
+  filter(season > 8) %>%
+  select(series_name)
+
+series.mais.que.oito.temp <- unlist(unique(series.mais.que.oito.temp))
+
+# definindo operador not in
+'%!in%' <- function(x,y)!('%in%'(x,y))
+
+# Os mesmos dados de antes excluindo 4 séries que possuiam mais de 8 temporadas
+dados.series <- dados.series %>% 
+  filter(series_name %!in% series.mais.que.oito.temp)
+```
+
 
 ```{r}
+summary(dados.series$season)
+# 75% das séries tem no máximo 5 temporadas
 
+pop.series <- dados.series %>%
+  group_by(series_name) %>%
+  summarise(votes = sum(UserVotes))
+
+top.series <- top_n(pop.series, 5, votes)
+
+dados.final <- dados.series %>%
+  filter(series_name %in% top.series$series_name)
+
+temps <- dados.final %>%
+  group_by(series_name) %>%
+  summarise(temps = max(season))
+
+eps <- dados.final %>%
+  group_by(series_name) %>%
+  summarise(eps = max(series_ep)) 
+ # filter(eps <= 10)
+
+
+
+```
+
+plot
+
+```{r}
+library(plotly)
+
+plot_ly(
+  dados.final,
+  x = ~ series_ep,
+  y = ~ UserRating,
+  type = 'scatter',
+  mode = 'lines',
+  color = ~ series_name
+)
+
+p <- economics %>%
+  tidyr::gather(variable, value, -date) %>%
+  transform(id = as.integer(factor(variable))) %>%
+  plot_ly(x = ~date, y = ~value, color = ~variable, colors = "Dark2",
+          yaxis = ~paste0("y", id)) %>%
+  add_lines() %>%
+  subplot(nrows = 5, shareX = TRUE)
+
+# Usar um gráfico de áreas empilhadas seria melhor
+# https://plot.ly/r/filled-area-plots/
+```
+
+```{r}
+library(highcharter)
+
+# hc <- highchart() %>% 
+#   hc_chart(type = "area") %>% 
+#   hc_title(text = "Historic and Estimated Worldwide Population Distribution by Region") %>% 
+#   hc_subtitle(text = "Source: Wikipedia.org") %>% 
+#   hc_xAxis(categories = as.character(c(1:113)),
+#            tickmarkPlacement = "on",
+#            title = list(enabled = FALSE)) %>% 
+#   hc_yAxis(title = list(text = "Percent")) %>% 
+#   hc_tooltip(split = TRUE, valueSuffix = ' millions') %>% 
+#   hc_plotOptions(area = list(
+#      stacking = "normal",
+#      lineColor = "#666666",
+#      lineWidth = 1,
+#      marker = list(
+#        lineWidth = 1,
+#        lineColor = "#666666"
+#        ))
+#      ) %>% 
+#   hc_add_series(name = "Game of Thrones", game.of.thrones$UserRating) %>%
+#   hc_add_series(name = "Breaking bad", data = breaking.bad$UserRating) %>%
+#   hc_add_series(name = "Dexter", data = dexter$UserRating) %>%
+#   hc_add_series(name = "The Walking Dead", the.walking.dead$UserRating) %>%
+#   hc_add_series(name = "Arrow", data = arrow$UserRating)
+# 
+# hc
+```
+
+```{r}
+dados.final <- dados.final %>%
+  mutate(notas.pessimas = round(r1 * UserVotes) + 
+           round(r2 * UserVotes) +
+           round(r3 * UserVotes),
+         notas.ruins = round(r4 * UserVotes) + round(r5 * UserVotes),
+         notas.medianas = round(r6 * UserVotes) + round(r7 * UserVotes),
+         notas.boas = round(r8 * UserVotes) + round(r9 * UserVotes),
+         nota.maxima =  round(r10 * UserVotes))
+
+chart.data2 <- dados.final %>%
+  group_by(series_name) %>%
+  summarise(pessimas = sum(notas.pessimas) / sum(notas.ruins, notas.medianas, notas.boas, notas.pessimas, nota.maxima),
+            ruins = sum(notas.ruins) / sum(notas.ruins, notas.medianas, notas.boas, notas.pessimas, nota.maxima),
+            medianas = sum(notas.medianas) / sum(notas.ruins, notas.medianas, notas.boas, notas.pessimas, nota.maxima),
+            boas = sum(notas.boas) / sum(notas.ruins, notas.medianas, notas.boas, notas.pessimas, nota.maxima),
+            maxima = sum(nota.maxima) / sum(notas.ruins, notas.medianas, notas.boas, notas.pessimas, nota.maxima))
+
+chart.data <- dados.final %>%
+  group_by(series_name) %>%
+  summarise(pessimas = sum(notas.pessimas),
+            ruins = sum(notas.ruins),
+            medianas = sum(notas.medianas),
+            boas = sum(notas.boas),
+            maxima = sum(nota.maxima))
+
+breaking.bad <- dados.final %>% filter(series_name == "Breaking Bad")
+dexter <- dados.final %>% filter(series_name == "Dexter")
+arrow <- dados.final %>% filter(series_name == "Arrow")
+game.of.thrones <- dados.final %>% filter(series_name == "Game of Thrones")
+the.walking.dead <- dados.final %>% filter(series_name == "The Walking Dead")
+
+hc2 <- highchart() %>% 
+  hc_title(text = "Historic and Estimated Worldwide Population Distribution by Region") %>% 
+  hc_subtitle(text = "Source: Wikipedia.org") %>% 
+  hc_xAxis(categories = as.character(chart.data$series_name)) %>% 
+  hc_series(list(type = "column",
+                 name = "Péssimas",
+                 data = chart.data$pessimas),
+            list(type = "column",
+                 name = "Ruins",
+                 data = chart.data$ruins),
+            list(type = "column",
+                 name = "Medianas",
+                 data = chart.data$medianas),
+            list(type = "column",
+                 name = "Boas",
+                 data = chart.data$boas),
+            list(type = "column",
+                 name = "Máxima",
+                 data = chart.data$maxima),
+            list(type = "spline",
+                 name = "Média"))
+
+hc2
+
+  
 ```
 
