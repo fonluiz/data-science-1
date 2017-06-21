@@ -2,7 +2,11 @@
 title: "Analisando a filmografia de Jennifer Lawrence"
 author: "Luiz Fonseca"
 date: "20 de junho de 2017"
-output: html_document
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 6
 ---
 
 ```{r setup, include=FALSE}
@@ -17,6 +21,7 @@ library(plotly)
 library(cluster)
 library(ggdendro)
 theme_set(theme_light())
+source("plota_solucoes_hclust.R")
 ```
 
 ## Objetivo
@@ -192,18 +197,22 @@ atribuicoes %>%
 
 ```
 
+Parece que para a escala linear o melhor agrupamento para a variável bilheteria seria dividirmos os filmes em três grupos. Um grupo de filmes que renderam abaixo de 50 milhões de dólares; outro grupo com filmes que renderam entre 100 e 200 milhões de dólares; e outro grupo com filmes que renderam acima de 250 milhões.
+
+
 ##### Escala logarítmica
 
 ```{r}
 row.names(filmes) = NULL
 agrupamento_h = filmes %>% 
     column_to_rownames("filme") %>% # hclust precisa dos rótulos em nomes de linha (ruim)
-    select(bilheteria) %>%
+    mutate(log_bilheteria = log(bilheteria, 10)) %>%
+    select(log_bilheteria) %>%
     dist(method = "euclidian") %>% 
     hclust(method = "ward.D2")
 
-ggdendrogram(agrupamento_h, rotate = T, size = 2) + 
-    geom_hline(yintercept = 200, colour = "red")
+ggdendrogram(agrupamento_h, rotate = T, size = 2) +
+    geom_hline(yintercept = 0.6, colour = "red")
 
 solucoes = tibble(k = 1:9)
 
@@ -214,28 +223,78 @@ atribuicoes = solucoes %>%
 
 atribuicoes %>% 
     ggplot(aes(x = "Filmes", y = bilheteria, colour = grupo)) + 
-    geom_jitter(width = .02, height = 0, size = 2, alpha = .6) + 
+    geom_jitter(width = .07, height = 0, size = 2, alpha = .6) + 
     facet_wrap(~ paste(k, " grupos")) +
    scale_y_log10()
 ```
 
+Utilizando a escala logarítmica, parece que a melhor opção de agrupamento seria dividir os filmes em quatro grupos. Então, teríamos um grupo de filmes menos rentáveis, com lucro inferior a 10 milhões de dólares; outro grupo de filmes que renderam um pouco mais, algo em torno de 30 e 40 milhões de dólares; outro grupo de filmes que renderam em torno de 100 e 150 milhões de dólares; e um último grupo de grandes sucessos de bilheteria, com renda superior a 250 milhẽs de dólares.
+
+Comparando as escalas, vemos que na escala logarítmica os grupos são mais bem definidos. Por exemplo, na escala linear o filme Joy, que rendeu 42,6 milhões de dólares ficou no mesmo grupo de filmes como "Like Crazy" (3,4 milhões) e "Winter's bone" (6,2 milhões). Na escala logarítimica, uma diferença pequena entre valores pequenos é mais relevante do que uma diferença pequena para valores grandes.
+
+## Le Grand Finale
+
+Agora que já sabemos um pouco sobre agrupamento e sabemos como os filmes são agrupados para diferentes variáveis e diferentes escalas iremos realizar um agrupamento final com as nossas duas variáveis juntas, utilizando a escala logarítmica para a variável bilheteria.
+
+Os gráficos abaixo nos auxiliarão na escolha da quantidade de grupos.
+
+```{r}
+filmes <- filmes %>% mutate(log_bilheteria = log(bilheteria, 10))
+
+agrupamento_h_2d = filmes %>% 
+    column_to_rownames("filme") %>%
+    select(avaliação, log_bilheteria) %>% 
+    mutate_all(funs(scale)) %>%
+    dist(method = "euclidean") %>% 
+    hclust(method = "ward.D2")
+
+ggdendrogram(agrupamento_h_2d, rotate = TRUE) +
+  geom_hline(yintercept = 3, colour = "red")
+
+data.frame(k = 1:NROW(agrupamento_h_2d$height),
+           height = agrupamento_h_2d$height) %>% 
+    ggplot(aes(x = k, y = height)) + 
+    geom_line(colour = "grey") + 
+    geom_point() + 
+    labs(x = "Junções feitas (14 no total)", y = "Dissimilaridade na junção")
+
+```
+
+Examinando os gráficos podemos ver que da 12ª para a 13ª iteração do algoritmo temos uma dissimilaridade entre grupos muito grande e este é o ponto do agrupamento em que devemos parar. Então o número de grupos do agrupamento será 3. Vamos ver como se comportam esses grupos.
+
+```{r}
+plota_hclusts_2d(agrupamento_h_2d, 
+                 filmes, 
+                 c("avaliação", "bilheteria"), 
+                 linkage_method = "centroid", ks = 3)
+```
+
+Então, levando em consideração tanto a bilheteria quanto a avaliação dos usuários, temos três grupos de filmes:
+
+<ol>
+<li> <b> Os prediletos</b> (grupo azul), que são os filmes que renderam uma boa bilheteria (acima de 100 milhões) e em geral são bem avaliados pelos usuários do Rotten Tomatoes, com notas acima de 60 e, em sua maioria, acima de 80. Um exemplo de filme que está nesse grupo é Jogos Vorazes (The Hunger Games), que é o filme de maior bilheteria da atriz e é um filme muito bem avaliado (84/100). </li>
+
+<li> <b> Os desconhecidos</b> (grupo verde), que é o grupo dos filmes que são bem avaliados porém pouca gente foi assistí-los no cinema e por isso renderam as menores bilheterias. Um exemplo de filme nesse grupo é Inverno da Alma (Winter's bone) que é muito bem avaliado (94/100), porém rendeu pouca bilheteria, talvez precisasse de mais marketing. </li>
+
+<li> <b> Os nao-chegaram-lá </b>, que é o grupo de filmes que são mal avalidos, com notas abaixo de 6, e renderam uma bilheteria baixa/média (no máximo 140 milhões de dólares). Um exemplo de filme nesse grupo é X-men: Apocalypse, que rendeu 136 milhões de dólares, porém sua avaliação no Rotten Tomatoes é 48/100.</li>
+</ol>
+
+<i> Observação: Quando utilizamos mais de uma variável em agrupamentos, precisamos deixar essas variáveis numa mesma escala para que uma não acabe influenciando mais no agrupamento do que outras. No nosso caso, a bilheteria acabaria influenciando bem mais no agrupamento, já que seus valores são bem mais altos que os da avaliação. Porém, como deixamos ambas as variáveis na mesma escala, isso não ocorreu.</i>
+
+Uma forma de avaliarmos o nosso agrupamento é verificando-o através de um gráfico de silhueta. O gráfico de silhueta abaixo nos diz o quão bem agrupados está cada um dos filmes. Quanto mais próximo de 1 a barra estiver, mais bem agrupado está o filme. Se o valor apontado pela barra for negativo, significa que aquele filme seria melhor encaixado em outro grupo do que n ogrupo atual.
+
+```{r}
+distancias = filmes %>% 
+    column_to_rownames("filme") %>%
+    select(avaliação, log_bilheteria) %>% 
+    mutate_all(funs(scale)) %>% 
+    dist(method = "euclidean")
+
+plot(silhouette(cutree(agrupamento_h_2d, k = 3), distancias))
 
 
 
+```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Observando o gŕafico vemos que todos os filmes estão bem encaixados nos seus grupos, alguns mais e outros menos.
 
