@@ -72,12 +72,14 @@ Vemos que o agrupamento faz sentido para a variável avaliação. Por outro lado
 ```{r}
 filmes %>% 
     ggplot(aes(x = "Filmes", y = ano)) + 
-    geom_jitter(width = .02, height = 0, size = 2, alpha = .6) 
+    geom_jitter(width = .02, height = 0, size = 2, alpha = .6) +
+    labs(title = "Ano de lançamento dos filmes de Jennifer Lawrence", x = "")
 
 filmes %>% 
     ggplot(aes(x = ano)) + 
     geom_histogram(bins = 17) + 
-    geom_rug()
+    geom_rug() +
+  labs(title = "Ano de lançamento dos filmes de Jennifer Lawrence (histograma)", x = "")
 ```
 
 A não ser que você quisesse que cada grupo fosse um ano. Porém, qual a utilidade desse agrupamento?
@@ -98,12 +100,14 @@ II) Utilizando uma escala logarítmica para evidenciar diferenças pequenas apen
 ```{r}
 filmes %>% 
     ggplot(aes(x = "Filmes", y = bilheteria)) + 
-    geom_jitter(width = .02, height = 0, size = 2, alpha = .6)  
+    geom_jitter(width = .02, height = 0, size = 2, alpha = .6) +
+  labs(title = "Bilheteria dos filmes de Jennifer Lawrence (escala linear)", x = "", y = "bilheteria (milhões de dólares)")
     
 filmes %>% 
     ggplot(aes(x = "Filmes", y = bilheteria)) + 
     geom_jitter(width = .02, height = 0, size = 2, alpha = .6) + 
-    scale_y_log10()
+    scale_y_log10() + 
+    labs(title = "Bilheteria dos filmes de Jennifer Lawrence (escala logarítmica)", x = "", y = "bilheteria (milhões de dólares)")
 ```
 
 Os grupos ficam bem mais claros ao utilizar a escala logarítmica. Podemos identificar três grupos: um de grandes sucesssos de bilheteria, com renda em geral acima de 100 milhões de dólares; outro grupo com filmes que não fizeram tanto sucesso; e um terceiro grupo com filmes de renda bem baixa quando comparados com os outros, abaixo de 10 milhões de dólares.
@@ -128,7 +132,8 @@ agrupamento_h = filmes %>%
     hclust(method = "ward.D2")
 
 ggdendrogram(agrupamento_h, rotate = T, size = 2) + 
-    geom_hline(yintercept = 20, colour = "red")
+    geom_hline(yintercept = 20, colour = "red") +
+    labs(title = "Agrupamento dos filmes")
 ```
 
 Fica a nosso critério escolher qual o número de grupos que melhor define os filmes. Provavelmente a melhor escolha de grupos é a que está cortada pela linha vermelha, pois a distância para unir dois grupos a partir desse ponto é bem maior do que as distâncias anteriores. Entao, para a avaliação teríamos quatro grupos de filmes, assim como háviamos interpretado antes.
@@ -159,7 +164,8 @@ atribuicoes = solucoes %>%
 atribuicoes %>% 
     ggplot(aes(x = "Filmes", y = avaliação, colour = grupo)) + 
     geom_jitter(width = .02, height = 0, size = 2, alpha = .6) + 
-    facet_wrap(~ paste(k, " grupos"))
+    facet_wrap(~ paste(k, " grupos")) +
+    labs(title = "Agrupamento para diferentes números de grupos", x = "")
 ```
 
 Dividir os filmes em quatro grupos também parece ser uma das escolhas mais sensatas de acordo com o gráfico acima.
@@ -193,7 +199,8 @@ atribuicoes = solucoes %>%
 atribuicoes %>% 
     ggplot(aes(x = "Filmes", y = bilheteria, colour = grupo)) + 
     geom_jitter(width = .02, height = 0, size = 2, alpha = .6) + 
-    facet_wrap(~ paste(k, " grupos"))
+    facet_wrap(~ paste(k, " grupos")) +
+    labs(y = "bilheteria (milhões de dólares)")
 
 ```
 
@@ -225,7 +232,8 @@ atribuicoes %>%
     ggplot(aes(x = "Filmes", y = bilheteria, colour = grupo)) + 
     geom_jitter(width = .07, height = 0, size = 2, alpha = .6) + 
     facet_wrap(~ paste(k, " grupos")) +
-   scale_y_log10()
+   scale_y_log10() +
+   labs(y = "bilheteria (milhões de dólares)")
 ```
 
 Utilizando a escala logarítmica, parece que a melhor opção de agrupamento seria dividir os filmes em quatro grupos. Então, teríamos um grupo de filmes menos rentáveis, com lucro inferior a 10 milhões de dólares; outro grupo de filmes que renderam um pouco mais, algo em torno de 30 e 40 milhões de dólares; outro grupo de filmes que renderam em torno de 100 e 150 milhões de dólares; e um último grupo de grandes sucessos de bilheteria, com renda superior a 250 milhẽs de dólares.
@@ -266,7 +274,8 @@ Examinando os gráficos podemos ver que da 12ª para a 13ª iteração do algori
 plota_hclusts_2d(agrupamento_h_2d, 
                  filmes, 
                  c("avaliação", "bilheteria"), 
-                 linkage_method = "centroid", ks = 3)
+                 linkage_method = "centroid", ks = 3) +
+   labs(y = "bilheteria (milhões de dólares)", x = "Avaliação dos usuários")
 ```
 
 Então, levando em consideração tanto a bilheteria quanto a avaliação dos usuários, temos três grupos de filmes:
