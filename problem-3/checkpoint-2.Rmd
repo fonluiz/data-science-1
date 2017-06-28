@@ -1,0 +1,120 @@
+---
+title: "Agrupando os departamentos da UFCG"
+author: "Luiz Fonseca"
+date: "27 de junho de 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F)
+```
+
+```{r}
+library(tidyverse)
+library(gridExtra)
+```
+
+## Objetivo
+
+Nesta análise irei fazer um agrupamento com múltiplas variáveis utilizando o algoritmo K-means. A intenção é agrupar Unidades Acadêmicas (departamentos) da Universidade Federal de Campina Grande. 
+
+Os dados vêm do portal da transparência do governo federal e são sobre os funcionários dos departamentos da UFCG. Após algumas derivações e transformações nos dados, eles passaram a ser organizados em função dos departamentos, que é o nosso objeto de estudo.
+
+## Os dados
+
+```{r}
+departamentos.ufcg <- read.csv("https://raw.githubusercontent.com/nazareno/tamanhos-da-ufcg/master/ufcg-201704-sumario-UAs-wide.csv")
+```
+
+O dataframe derivado contém 7 colunas, que estão descritas abaixo.
+
+```{r}
+names(departamentos.ufcg) <- c("unidade_academica", "nao_professor", "professor_20h", "professor_40h", "idade_25perc", "idade_mediana", "idade_75perc")
+
+colnames(departamentos.ufcg)
+```
+
+<b>unidade_academica:</b> Unidade acadêmica de lotação do funcionário
+
+<b>nao_professor:</b> Número de funcionários na UA que não são professores
+
+<b>professor_20h:</b> Número de professores com carga horária 20h/semana na UA
+
+<b>professor_40h:</b> Número de professores com carga horária 40h/semana na UA, sejam eles Dedicação Exclusiva ou não
+
+<b>idade_25perc, idade_mediana e idade_75perc:</b> 25, 50 e 75 percentil da idade dos funcionários no cargo (ex: idade_25perc = 10 significa que 25% dos funcionários, sejam eles professores ou não, da UA tem 10 anos ou menos na profissão).
+
+Eu decidi retirar a idade do 25 percentil e do 75 percentil e utilizar somente a idade mediana, já que estas três variáveis dizem respeito ao mesmo dado (idade) e a mediana é uma métrica boa de sumarização.
+
+Os gráficos abaixo mostram as distribuições de cada variável. Cada ponto representa uma unidade acadêmica (46 unidades acadêmicas no total).
+
+```{r, fig.height=11}
+dados.agrupamento <- departamentos.ufcg %>%
+  select(-idade_25perc, -idade_75perc)
+
+plot1 <- dados.agrupamento %>% 
+    ggplot(aes(x = "unidades acadêmicas", y = nao_professor)) + 
+    geom_jitter(width = .025, height = 0, size = 2, alpha = .5) +
+  labs(x = "", y="funcinários não professores")
+
+plot2 <-  dados.agrupamento %>%
+  ggplot(aes(x = "unidades acadêmicas", y = professor_20h)) + 
+    geom_jitter(width = .02, height = 0, size = 2, alpha = .6) +
+  labs(x = "", y="professores 20 h semanais")
+
+plot3 <-  dados.agrupamento %>%
+  ggplot(aes(x = "unidades acadêmicas", y = professor_40h)) + 
+    geom_jitter(width = .02, height = 0, size = 2, alpha = .6) +
+  labs(x = "", y="professores 40 h semanais")
+
+plot4 <-  dados.agrupamento %>%
+  ggplot(aes(x = "unidades acadêmicas", y = idade_mediana)) + 
+    geom_jitter(width = .02, height = 0, size = 2, alpha = .6) +
+  labs(x = "", y="mediana do tempo no cargo")
+
+grid.arrange(plot1, plot2, plot3, plot4)
+```
+
+Cada variável tem um comportamento diferente e poderíamos enxergar grupos de unidades acadêmicas de acordo com cada variável individualmente, mas este não é o nosso propósito.
+
+Todas as variáveis serão utilizadas no agrupamento numa escala linear. A escala logarítmica não é tão útil nesse caso porque a faixa de valores das variáveis não é muito grande.
+
+## Agrupamento
+
+Como dito anteriormente, o algoritmo de agrupamento que será utilizado pe o K-means. Os paramêtros de entrada do algorítmo são os dados do agrupamento e  um valor k, onde k  é o número de grupos em que iremos agrupar os dados. 
+
+Conceitualmente, o algorítmo funciona da seguinte forma:
+
+<ol>
+<li> Seleciona K centroides randomicamente; </li>
+<li> Designa cada ponto dos dados para o centroide mais próximo em um espaço n-dimensional onde n é o número de variáveis do agrupamento. Depois disso cada ponto pertencerá a um grupo;</li>
+<li> Recalcula o centroide como sendo o ponto médio de todos os outros pontos do grupo;</li>
+<li> Continua executando os passos dois e três até que nenhum ponto tenha sido realocado para outro centroide ou até atingir o número máximo de iterações (o R usa 10 como default).</li>
+</ol>
+
+Quanto mais grupos (maior o valor de k) você escolher, menor será a variância dos grupos no seu agrupamento. No limite, cada observação será um grupo e a variância será 0. É interessante encontrar um equilíbrio entre o número de grupos e a variância destes.
+
+Como vamos saber qual valor de k escolher para econtrar esse equilíbrio?
+
+```{r}
+kmeans(input, centers = 15)
+```
+
+
+```{r}
+input <- dados.agrupamento[,2:5]
+wss <- (nrow(input)-1)*sum(apply(input,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(input, 
+  	centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+  ylab="Within groups sum of squares")
+```
+
+
+https://www.r-bloggers.com/k-means-clustering-in-r/
+https://stat.ethz.ch/R-manual/R-devel/library/stats/html/kmeans.html
+http://www.statmethods.net/advstats/cluster.html
+https://www.r-statistics.com/2013/08/k-means-clustering-from-r-in-action/
+<br>
+<br>
+<br>
