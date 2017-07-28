@@ -1,0 +1,271 @@
+---
+title: "Analisando dados do github"
+author: "Luiz Fonseca"
+date: "25 de julho de 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, set.seed(123))
+```
+
+## Os dados
+
+Nesta análise utilizaremos dados vindos do github. Os dados brutos contém a contagem de quantas pessoas editaram arquivos com cada extensão de arquivo em cada dia de 2016 e 2017 no github. Os dados não são de todos os repositórios. Trata-se de uma amostra de alguns repositorios.
+
+## O que fazer
+
+Temos duas questões a resolver como objetivo desta análise. Primeiro temos que selecionar duas extensões de arquivos quaisquer e a partir delas reposnder às seguintes questões:
+
+1. Para cada uma das linguagens (extensões), há uma diferença significativa na sua popularidade durante a semana e durante o fim de semana? Essa diferença é grande?
+
+2. Existe uma diferença significativa entre as duas linguagens na sua variação de popularidade nos finais de semana?
+
+## Iniciando
+
+```{r}
+# Lê os dados
+dados_github <- read.csv("https://raw.githubusercontent.com/nazareno/fpcc2/master/datasets/github-users-committing-filetypes.csv")
+
+# Renomeia as colunas
+names(dados_github) <- c("extension", "month_day", "month", "year", "users")
+```
+
+Vamos escolher as duas extensões que mais aparecem no arquivo.
+
+```{r}
+library(tidyverse)
+
+dados_github %>%
+  group_by(extension) %>%
+  summarise(count = n()) %>%
+  arrange(-count) %>%
+  head()
+  
+```
+
+As extensões que mais aparecem são js (Javascript) e md (Markdown), que serão as escolhidas.
+
+```{r}
+# Filtrando as linguagens que utilizarei
+js_ext <- dados_github %>% filter(extension == "js") 
+md_ext <- dados_github %>% filter(extension == "md")
+```
+
+Agora que temos os dados que iremos utilizar iremos gerar novas variávies a partir das existentes. Precisamos saber que datas são fins de semana e que datas não são.
+
+```{r}
+js_ext <- js_ext %>%
+  mutate( date = paste(year, month, month_day, sep = "-")) %>%
+  mutate( weekday = weekdays(as.Date(date))) %>%
+  mutate( weekend = ifelse(weekday == "domingo" | weekday == "sábado",
+                           TRUE, 
+                           FALSE))
+
+md_ext <- md_ext %>%
+  mutate( date = paste(year, month, month_day, sep = "-")) %>%
+  mutate( weekday = weekdays(as.Date(date))) %>%
+  mutate( weekend = ifelse(weekday == "domingo" | weekday == "sábado",
+                           TRUE, 
+                           FALSE))
+
+```
+
+As variáveis geradas foram:
+
+* date: dia, mês e ano em uma única string;
+* weekday: qual dia da semana corresponde à data.
+* weekend: valor booleano que indica se a data é ou não um final de semana.
+
+## Panorama dos dados
+
+Agora que temos os dados prontos vamos criar uma visão geral destes dados através de algumas visualizações
+
+```{r}
+library(ggplot2)
+library(plotly)
+
+p1 <- ggplot(js_ext, aes(x = "", y = users)) +
+  geom_boxplot() +
+  labs(title = "Distribuição dos usuários que modificaram arquivos .js (por dia)", y = "usuários", x = "")
+ggplotly(p1)
+
+p2 <- ggplot(md_ext, aes(x = "", y = users)) +
+  geom_boxplot() +
+   labs(title = "Distribuição dos usuários que modificaram arquivos .md (por dia)", y = "usuários", x = "")
+ggplotly(p2)
+```
+ Pelos boxplots acima vemos que temos um outlier no número de usuários que modificaram arquivos markdown. Iremos excluir esse outlier dos dados por se tratar de um dia bem atípico. Neste dia apenas 781 usuários fizeram modificações em arquivos md e em todos os outros dias o número de usuários ultrapassa 2800.
+ 
+ 
+```{r}
+# Removendo o outlier
+md_ext <- md_ext %>%
+  filter(users > 781)
+```
+
+```{r}
+ggplot(js_ext, aes(x="", y = users, color = weekend)) +
+    geom_jitter(width = .03, height = 0, size = 2, alpha = .5) +
+    labs(title="Usuários que modificaram arquivos .js na semana e nos finais de semana", 
+         x = "usuários", y="usuários", color="Final de Semana")
+
+ggplot(md_ext, aes(x="", y = users, color = weekend)) +
+    geom_jitter(width = .03, height = 0, size = 2, alpha = .5) +
+    labs(title="Usuários que modificaram arquivos .md na semana e nos finais de semana", 
+         x = "usuários", y="usuários", color="Final de Semana")
+```
+
+## Questão 1
+
+Para responder a questão 1. Precisamos utilizar técnicas de inferência estatística pois não temos informação de todos os repositórios do github, mas apenas de uma amostra de repositórios. 
+
+Em outras palavras, não temos a população, para estimar a variação na distribuição amostral. A ideia principal que usaremos em uma técnica chamada bootstrapping é que usar a amostra como substituto da população e simular a amostragem através de reamostragem com reposição fornece uma estimativa precisa da variação na distribuição amostral.
+
+Pegando por partes:
+
+* Consideramos a amostra $A$ que tem tamanho $n$ como sendo um substituto da população
+
+* Repetimos $b$ vezes o seguinte processo: criamos uma amostra de tamanho $n$ obtendo elementos aleatoriamente de $A$, repondo cada elemento depois de cada sorteio.
+
+* Calculamos a estatística $e$ que nos interessa (média, mediana, desvio padrão, o que for) para cada uma das $b$ amostras.
+
+Como resultado, sabemos como a estatística $e$ varia em uma simulação de $b$ amostragens.
+
+Utilizaremos a mediana como estatística de sumarização dos dados e aplicaremos a técnica de bootstrapping para os dias que são final de semana (sábado e domingo) e os dias que não são para vermos as diferenças.
+
+
+```{r}
+set.seed(123)
+library(boot)
+library(gridExtra)
+
+repeticoes = 5000 # o número de amostras que iremos criar com a reamostragem.
+
+# Separa os dados do final de semana e da semana
+js_ext_fds <- js_ext %>% filter(weekend == T);
+js_ext_week <- js_ext %>% filter(weekend == F);
+
+md_ext_fds <- md_ext %>% filter(weekend == T);
+md_ext_week <- md_ext %>% filter(weekend == F);
+
+# essa função recebe um vector e faz uma reamostragem com repetições do vetor.
+# Depois ela calcula a mediana do vector e retorna o valor.
+bootstrapping <- function(vector){
+  sample <- sample(vector, size = NROW(vector), replace = TRUE)
+  return(median(sample))
+}
+
+# Bootstrapping para javascript
+bs_js_fds = data_frame(i = 1:repeticoes) %>% 
+  rowwise() %>% 
+  mutate(median = bootstrapping(js_ext_fds$users)) 
+
+bs_js_week = data_frame(i = 1:repeticoes) %>% 
+  rowwise() %>% 
+  mutate(median = bootstrapping(js_ext_week$users)) 
+
+p1 <- ggplot(bs_js_fds, aes(x = median)) + 
+  geom_histogram(binwidth = 1, colour = "darkorange", fill = "white") +
+  labs(title = "Javascript - Final de Semana",
+       x = "mediana", y = "frequência absoluta")
+
+p2 <- ggplot(bs_js_week, aes(x = median)) + 
+  geom_histogram(binwidth = 1, colour = "darkorange", fill = "white") +
+  labs(title = "Javascript - Dias de Semana",
+       x = "mediana", y = "frequência absoluta")
+
+# Bootstrapping para markdown
+bs_md_fds = data_frame(i = 1:repeticoes) %>% 
+  rowwise() %>% 
+  mutate(median = bootstrapping(md_ext_fds$users)) 
+
+bs_md_week = data_frame(i = 1:repeticoes) %>% 
+  rowwise() %>% 
+  mutate(median = bootstrapping(md_ext_week$users)) 
+
+p3 <- ggplot(bs_md_fds, aes(x = median)) + 
+  geom_histogram(binwidth = 1, colour = "darkorange", fill = "white") +
+  labs(title = "Markdown - Final de Semana",
+       x = "mediana", y = "frequência absoluta")
+
+p4 <- ggplot(bs_md_week, aes(x = median)) + 
+  geom_histogram(binwidth = 1, colour = "darkorange", fill = "white") +
+  labs(title = "Markdown - Dias de Semana",
+       x = "mediana", y = "frequência absoluta")
+```
+O gráfico abaixo mostra o resultado do bootstrapping para javascript e markdown em dias de semana e finais de semana. Podemos ver que a distribuição amostral se assemelha com a distribuição normal.
+
+```{r}
+grid.arrange(p1, p2, p3, p4)
+```
+
+Feito o bootstrapping, agora precisamos calcular os intervalos de confianças para as nossas variáveis para podermos de fato responder à questão proposta.
+
+```{r}
+# Calcula os intervalos de confiança para 90% de confiança
+alpha = .1
+
+ci_js_fds = quantile(bs_js_fds$median, probs = c(alpha/2, 1 - alpha/2))
+ci_js_week = quantile(bs_js_week$median, probs = c(alpha/2, 1 - alpha/2))
+ci_md_fds = quantile(bs_md_fds$median, probs = c(alpha/2, 1 - alpha/2))
+ci_md_week = quantile(bs_md_week$median, probs = c(alpha/2, 1 - alpha/2))
+
+
+# forma um dataframe com os valores do intervalo de confiança 
+# para javscript
+js_CIs <- data.frame(variable = c("Semana", "Final de semana"),
+                      lower = c(ci_js_week['5%'], ci_js_fds['5%']),
+                      median = c(summary(bs_js_week$median)['Median'],
+                                 summary(bs_js_fds$median)['Median']),
+                      upper = c(ci_js_week['95%'], ci_js_fds['95%'])
+                      )
+
+# para markdown
+md_CIs <- data.frame(variable = c("Semana", "Final de semana"),
+                      lower = c(ci_md_week['5%'], ci_md_fds['5%']),
+                      median = c(summary(bs_md_week$median)['Median'],
+                                 summary(bs_md_fds$median)['Median']),
+                      upper = c(ci_md_week['95%'], ci_md_fds['95%'])
+                      )
+
+```
+
+Os gráficos abaixo nos mostram os intervalos de confiança para as medianas do número de usuários que modificaram arquivos javascript e markdown em 2016 e 2017 no github com confiança de 90%.
+
+Observando os gráficos, podemos ver que tanto para javascript quanto para markdown os intervalos de confiança não se cruzam. De fato o menor valor do intervalo de confiança da mediana para dias da semana é bem mais alto que o maior valor do intervalo de confiança para finais de semana em ambas as extensões. Para javascript essa diferença é 2654 e para markdown é 2724.
+
+Com isso, podemos afirmar agora que há diferença significativa na popularidade dessas duas linguagens entre dias que são de semana e dias que são de final de semana. E é uma diferença grande pois, com 90% de certeza afirmamos que a diferença é de no mínimo 2600 usuários para a mediana. 
+
+```{r}
+ggplot(js_CIs, aes(x = variable, color = variable)) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  geom_point(aes(x = variable, y = median)) +
+  labs(title = "IC da mediana para Javascript" , x = "", y = "mediana", color = "")
+
+ggplot(md_CIs, aes(x = variable, color = variable)) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  geom_point(aes(x = variable, y = median)) +
+    labs(title = "IC da mediana para Markdown" , x = "", y = "mediana", color = "")
+```
+
+## Questão 2
+
+A questão dois pode ser respondida com os resultados da questão 1.
+
+Pelo gráfico abaixo podemos ver que há sim uma diferença significativa entre a popularidade das duas linguagens no final de semana. Markdown é bem mais popular nos finais de semana do que javascript. A diferença entre o menor valor do intervalo de confiança da mediana de markdown para o maior valor do intervalo de confiança da mediana de javascript é de 1205
+
+```{r}
+fds_ICs <- data.frame(variable = c("Javascript", "Markdown"),
+                      lower = c(ci_js_fds['5%'], ci_md_fds['5%']),
+                      median = c(summary(bs_js_fds$median)['Median'],
+                                 summary(bs_md_fds$median)['Median']),
+                      upper = c(ci_js_fds['95%'], ci_md_fds['95%'])
+                      )
+
+ggplot(fds_ICs, aes(x = variable, color = variable)) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  geom_point(aes(x = variable, y = median)) +
+    labs(title = "ICs para a mediana nos Fins de Semana" , x = "", y = "mediana", color = "")
+```
+
