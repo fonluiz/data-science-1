@@ -1,0 +1,85 @@
+---
+title: "Analisando dados do Github -  Parte 2"
+author: "Luiz Fonseca"
+date: "28 de julho de 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, set.seed(123))
+```
+
+## O objetivo
+
+Nesta análise iremos continuar explorando dados do github. Os dados brutos contém a contagem de quantas pessoas editaram arquivos com cada extensão de arquivo em cada dia de 2016 e 2017 no github. Os dados não são de todos os repositórios. Trata-se de uma amostra de alguns repositorios.
+
+O objetivo é responder às seguintes questões:
+
+<ol>
+<li> Qual o mês que possui mais dispersão entre o número de alterações por dia? A dispersão é grande? </li>
+<li> Para uma linguagem qualquer escolhida, o número de contribuições se alteraram ao longo de 2016? </li
+</ol>
+<p></p>
+Após responder cada uma dessas perguntas depois iremos gerar uma nova pergunta que pode ser derivada das respostas obtidas.
+
+## Primeira pergunta
+<b>Qual o mês que possui mais dispersão entre o número de alterações por dia? A dispersão é grande?</b>
+<hr>
+A ideia geral para responder a essa pergunta é utilizarmos o desvio padrão como métrica de dispersão. E então utilizar a técnica de reamostragem com bootstrapping para inferirmos a partir da amostra de dados que temos, o valor do desvio padrão para a população.
+
+```{r}
+# Carregando os dados
+dados_github <- read.csv("https://raw.githubusercontent.com/nazareno/fpcc2/master/datasets/github-users-committing-filetypes.csv")
+
+# Renomeia as colunas
+names(dados_github) <- c("extension", "month_day", "month", "year", "users")
+```
+
+Para simplificar o trabalho, utilizarei apenas os dados do ano 2016, porque para o ano de 2017 não há dados de todos os meses.
+
+```{r}
+library(tidyverse)
+set.seed(123)
+
+# Filtra os dados somente do ano 2016
+dados_2016 <- dados_github %>% filter(year == 2016)
+
+# Verificando se há a contagem certa de dias para cada mês do ano
+dias_por_mes <- dados_2016 %>%
+  group_by(year, month) %>%
+  summarise(dias = length(unique(month_day)))
+# Confirmado. Para 2016, há dados de todos os dias de cada mês
+
+# Função que recebe um vetor, faz uma reamostragem desse vetor e depois
+# retorna o desvio padrão dos valores do vetor.
+resample_sd <- function(vector) {
+  sample <- sample(vector, size = NROW(vector), replace = TRUE)
+  return(sd(sample))
+}
+
+# o número de amostras que iremos criar com o bootstrapping.
+repeticoes <- 5000
+# a região crítica, isto é, a porcentagem inversa ao nível de confiança
+alpha <- 0.1
+
+# função que executa a reamostragem várias vezes e no final retorna o intervalo de confiança
+# para o desvio padrão
+bootstrap_sd <- function(vector, repetitions, alpha) {
+  
+  results <- data_frame(i = 1:repetitions) %>% 
+  rowwise() %>% 
+  mutate(sd = resample_sd(vector))
+  
+  percentis = quantile(results$sd, probs = c(alpha/2, 1 - alpha/2))
+  sd <- summary(results)['Median']
+  lower <- percentis[1]
+  upper <- percentis[2]
+  
+  return(c(sd = sd, lower = lower, upper = upper))
+}
+
+
+
+
+```
+
