@@ -25,7 +25,7 @@ Após responder cada uma dessas perguntas depois iremos gerar uma nova pergunta 
 ## Primeira pergunta
 <b>Qual o mês que possui mais dispersão entre o número de alterações por dia? A dispersão é grande?</b>
 <hr>
-A ideia geral para responder a essa pergunta é utilizarmos o desvio padrão como métrica de dispersão. E então utilizar a técnica de reamostragem com bootstrapping para inferirmos a partir da amostra de dados que temos, o valor do desvio padrão para a população.
+A ideia geral para responder a essa pergunta é utilizarmos o desvio padrão como métrica de dispersão e então utilizar a técnica de reamostragem com bootstrapping para inferirmos a partir da amostra de dados que temos o valor do desvio padrão para a população.
 
 ```{r}
 # Carregando os dados
@@ -35,10 +35,14 @@ dados_github <- read.csv("https://raw.githubusercontent.com/nazareno/fpcc2/maste
 names(dados_github) <- c("extension", "month_day", "month", "year", "users")
 ```
 
-Para simplificar o trabalho, utilizarei apenas os dados do ano 2016, porque para o ano de 2017 não há dados de todos os meses.
+Para simplificar o trabalho, utilizarei apenas os dados do ano 2016, porque para o ano de 2017 não há dados de todos os meses. 
+
+Temos que levar em consideração que há extensões que são bem mais alteradas do que outras e isso pode afetar no resultado de qual mês possui mais dispersão, pois a dispersão entre extensões será considerada. Para resolver essa questão vamos selecionar apenas extensões que possuem uma mediana de alterações diárias parecida.
 
 ```{r}
 library(tidyverse)
+library(ggplot2)
+library(plotly)
 set.seed(123)
 
 # Filtra os dados somente do ano 2016
@@ -50,6 +54,36 @@ dias_por_mes <- dados_2016 %>%
   summarise(dias = length(unique(month_day)))
 # Confirmado. Para 2016, há dados de todos os dias de cada mês
 
+# Medianas do número de alterações diárias para cada extensão"
+extensoes <- dados_2016 %>%
+  group_by(extension) %>%
+  summarise(median = median(users)) %>%
+  arrange(median)
+
+```
+
+Pelo gráfico abaixo temos uma ideia sumarizada do número de alterações diárias de arquivos de cada extensão.
+```{r}
+ggplotly (
+  ggplot(extensoes, aes(x = "", y = median)) +
+    geom_boxplot() +
+    labs(x = "", y = 'mediana', title = "Medianas do número de alterações diárias para cada extensão")
+)
+```
+
+Podemos ver que temos duas extensões (md e js) que possuem uma mediana alta de alterações diárias. Estas extensões não são representativas do todo, pois a maioria possuem bem menos alterações por dia. De fato, metade das extensões possui uma mediana abaixo de 847 alterações por dia. A menor mediana é de 506. Então vamos selecinar essas extensões que representam 50% das extensões que temos e o valor mediano de alterações por dia é entre 506 e 847.
+
+```{r}
+# Filtrando as extensoes que vamos usar
+extensoes <- extensoes %>% filter(median < 847)
+
+dados_2016 <- dados_2016 %>%
+  filter(extension %in% extensoes$extension)
+```
+
+Agora que selecionamos as extensões vamos realizar o processo de reamostragem para identificarmos a dispersão de cada mês.
+
+```{r}
 # Função que recebe um vetor, faz uma reamostragem desse vetor e depois
 # retorna o desvio padrão dos valores do vetor.
 resample_sd <- function(vector) {
@@ -71,15 +105,100 @@ bootstrap_sd <- function(vector, repetitions, alpha) {
   mutate(sd = resample_sd(vector))
   
   percentis = quantile(results$sd, probs = c(alpha/2, 1 - alpha/2))
-  sd <- summary(results)['Median']
+  sd <- summary(results$sd)['Median']
   lower <- percentis[1]
   upper <- percentis[2]
   
   return(c(sd = sd, lower = lower, upper = upper))
 }
 
+resultado1 <- data.frame()
+
+# Faz o bootstrap para cada mês
+for (mes in 1:12) {
+  dados_mes <- dados_2016 %>% filter(month == mes)
+  CI <- bootstrap_sd(dados_mes$users, repeticoes, alpha)
+  sumario <- c(month = mes, CI)
+  resultado1 <- rbind(resultado1, sumario)
+}
+
+names(resultado1) <- c('month', 'sd', 'lower', 'upper')
+```
+
+O gŕafico abaixo mostra os intervalos de confiança do desvio padrão encontrados para cada mês do ano.
+
+```{r}
+ggplot(resultado1, aes(x = as.factor(month), color = as.character(month))) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  geom_point(aes(x = as.factor(month), y = sd)) +
+  guides(color=FALSE) +
+  labs(title = "Intervalo de confiança do desvio padrão" , x = "Mês", y = "Desvio padrão", color = "")
+```
+
+Analisando os intervalos de confiança sabemos que novembro e dezembro são os meses com mais dispersão. Entretanto, entre estes dois não sabemos qual o que possui mais dispersão pois os seus intervalos estão sobrepostos. A partir dessa resposta podemos gerar uma nova pergunta:
+
+* Será que para uma única extensão, há diferença na dispersão de alterações de arquivos entre os meses de novembro e dezembro?
+
+Vamos tentar responder essa questão.
+
+Vamos escolher três extensões e verificar individualmente se existe diferença de dispersão entre novembro e dezembro.
+
+```{r}
+# Selecionando extensões
+extensoes_selecionadas <- dados_github %>% filter(year == 2016, extension %in% c("js", "java", "py"))
+
+resultado2 <- data.frame()
+
+for (ext in c("js", "java", "py")) {
+  for (mes in 11:12) {
+    dados_mes <- extensoes_selecionadas %>% filter(extension == ext, month == mes)
+    CI <- bootstrap_sd(dados_mes$users, repeticoes, alpha)
+    sumario <- c(extension = ext, month = mes, CI)
+    resultado2 <- rbind(resultado2, sumario, stringsAsFactors = FALSE)
+  }
+}
+
+names(resultado2) <- c('extension', 'month', 'sd', 'lower', 'upper')
+
+ggplot(resultado2, aes(x = extension, color = as.character(month))) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  # geom_point(aes(x = as.factor(month), y = sd)) +
+  labs(title = "Intervalo de confiança do desvio padrão" , x = "Mês", y = "Desvio padrão", color = "Mês")
 
 
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
