@@ -1,0 +1,11 @@
+---
+title: "checkpoint4"
+author: "Luiz Alberto Fonseca"
+date: "August 4, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
