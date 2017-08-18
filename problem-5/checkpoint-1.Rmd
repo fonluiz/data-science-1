@@ -1,0 +1,19 @@
+---
+title: "Analisando dados de encontros relâmpago"
+author: "Luiz Fonseca"
+date: "17 de agosto de 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+dados_econtros <- read.csv("https://raw.githubusercontent.com/nazareno/ciencia-de-dados-1/master/5-regressao/speed-dating/speed-dating.csv")
+```
+
+perguntas:
+O que mais provoca interesse por um segundo encontro?
+O que mais causa atração à primeira vista?
+
