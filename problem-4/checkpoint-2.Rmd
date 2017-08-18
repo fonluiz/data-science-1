@@ -17,7 +17,7 @@ O objetivo é responder às seguintes questões:
 
 <ol>
 <li> Qual o mês que possui mais dispersão entre o número de alterações por dia? A dispersão é grande? </li>
-<li> Para uma linguagem qualquer escolhida, o número de contribuições se alteraram ao longo de 2016? </li
+<li> Para uma extensão qualquer escolhida, o número de contribuições se alteraram ao longo de 2016? </li
 </ol>
 <p></p>
 Após responder cada uma dessas perguntas depois iremos gerar uma nova pergunta que pode ser derivada das respostas obtidas.
@@ -84,6 +84,8 @@ dados_2016 <- dados_2016 %>%
 Agora que selecionamos as extensões vamos realizar o processo de reamostragem para identificarmos a dispersão de cada mês.
 
 ```{r}
+set.seed(123)
+
 # Função que recebe um vetor, faz uma reamostragem desse vetor e depois
 # retorna o desvio padrão dos valores do vetor.
 resample_sd <- function(vector) {
@@ -94,7 +96,7 @@ resample_sd <- function(vector) {
 # o número de amostras que iremos criar com o bootstrapping.
 repeticoes <- 5000
 # a região crítica, isto é, a porcentagem inversa ao nível de confiança
-alpha <- 0.1
+alpha <- 0.05
 
 # função que executa a reamostragem várias vezes e no final retorna o intervalo de confiança
 # para o desvio padrão
@@ -135,9 +137,10 @@ ggplot(resultado1, aes(x = as.factor(month), color = as.character(month))) +
   labs(title = "Intervalo de confiança do desvio padrão" , x = "Mês", y = "Desvio padrão", color = "")
 ```
 
-Analisando os intervalos de confiança sabemos que novembro e dezembro são os meses com mais dispersão. Entretanto, entre estes dois não sabemos qual o que possui mais dispersão pois os seus intervalos estão sobrepostos. A partir dessa resposta podemos gerar uma nova pergunta:
+Analisando os intervalos de confiança sabemos (com 95% de confiança) que novembro e dezembro são os meses com mais dispersão. Entretanto, entre estes dois não sabemos qual o que possui mais dispersão pois os seus intervalos estão sobrepostos. A partir dessa resposta podemos gerar uma nova pergunta:
 
-* Será que para uma única extensão, há diferença na dispersão de alterações de arquivos entre os meses de novembro e dezembro?
+<b> Será que para uma única extensão, há diferença na dispersão de alterações de arquivos entre os meses de novembro e dezembro? </b>
+<hr>
 
 Vamos tentar responder essa questão.
 
@@ -160,20 +163,139 @@ for (ext in c("js", "java", "py")) {
 
 names(resultado2) <- c('extension', 'month', 'sd', 'lower', 'upper')
 
-ggplot(resultado2, aes(x = extension, color = as.character(month))) +
-  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
-  # geom_point(aes(x = as.factor(month), y = sd)) +
-  labs(title = "Intervalo de confiança do desvio padrão" , x = "Mês", y = "Desvio padrão", color = "Mês")
-
-
-
 ```
 
+O gráfico abaixo mostra os intrevalos de confiança do desvio padrão do número de alterações de usuários para as três extensões escolhidas e para cada um dos meses (novembro e dezembro).
 
+```{r}
+ggplot(resultado2, aes(x = extension, color = as.character(month))) +
+  geom_errorbar(aes(ymin = as.numeric(lower), ymax = as.numeric(upper)), width = 0.2) +
+  # geom_point(aes(x = as.factor(month), y = sd)) +
+  labs(title = "Intervalo de confiança do desvio padrão" , x = "extensão", y = "Desvio padrão", color = "Mês")
+```
 
+Podemos ver que para as três extensões, ambos os intervalos se sobrepõem. Isso significa que não podemos afirmar que há diferença de dispersão de novembro para dezembro nessas três extensões. Então, a resposta para a pergunta é que temos 95% de certeza de que não há diferença na dispersão entre os meses de novembro e dezembro.
 
+# Segunda Pergunta
 
+<b> Para uma extensão qualquer escolhida, o número de contribuições se alteraram ao longo de 2016? </b>
+<hr>
 
+Vamos fazer essa verificação para a extensão java. A ideia é calcular o intervalo de confiança da média de alterações para cada mês de 2016 e verificar o comportamento desses intervalos.
+
+```{r}
+set.seed(123)
+
+# Dados que vamos usar
+dados_java <- dados_github %>% filter(extension == 'java', year == 2016)
+
+# Função que recebe um vetor, faz uma reamostragem desse vetor e depois
+# retorna a média dos valores do vetor.
+resample_mean <- function(vector) {
+  sample <- sample(vector, size = NROW(vector), replace = TRUE)
+  return(mean(sample))
+}
+
+# função que executa a reamostragem várias vezes e no final retorna o intervalo de confiança
+# para a média
+bootstrap_mean <- function(vector, repetitions, alpha) {
+  
+  results <- data_frame(i = 1:repetitions) %>% 
+  rowwise() %>% 
+  mutate(mean = resample_mean(vector))
+  
+  percentis = quantile(results$mean, probs = c(alpha/2, 1 - alpha/2))
+  mean <- summary(results$mean)['Median']
+  lower <- percentis[1]
+  upper <- percentis[2]
+  
+  return(c(mean = mean, lower = lower, upper = upper))
+}
+
+resultado3 <- data.frame()
+
+# Faz o bootstrap para cada mês
+for (mes in 1:12) {
+  dados_mes <- dados_java %>% filter(month == mes)
+  CI <- bootstrap_mean(dados_mes$users, repeticoes, alpha)
+  sumario <- c(month = mes, CI)
+  resultado3 <- rbind(resultado3, sumario)
+}
+
+names(resultado3) <- c('month', 'mean', 'lower', 'upper')
+```
+
+O gráfico abaixo mostra o resultado da execução do bootstrap.
+
+```{r}
+ggplot(resultado3, aes(x = as.factor(month), color = as.character(month))) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  geom_point(aes(x = as.factor(month), y = mean)) +
+  guides(color=FALSE) +
+  labs(title = "Intervalo de confiança para a média" , x = "Mês", y = "Média")
+```
+
+A partir do gŕafico podemos dizer (com 95% de confiança) que nos meses 2, 3 e 4, por exemplo, há mais alterações de usuários do que nos meses 7, 8, 9. Não Podemos afirmar o quão grande é essa diferença. 
+
+Respondendo à pergunta feita, podemos dizer que sim, houve alteraçao no número de contribuições para arquivos java ao longo de 2016. Não sabemos se a diferença é significativa ou se é pequena, mas sabemos que em pelo menos 3 mêses de 2016 (fevereiro, março, abril) o número médio de alterações em arquivos java é maior do que em pelo menos outros três meses (julho, agosto, setembro).
+
+A partir dessa resposta podemos derivar uma nova questão:
+
+<b>O quão grande é a diferença do número médio de alterações da extensão java entre os meses fevereiro, março e abril e os meses julho, agosto e setembro?</b>
+<hr>
+
+Agora iremos saber o valor da diferença que descobrimos que existe na resposta anterior.
+
+```{r}
+set.seed(123)
+
+dados_java_filtered <- dados_java %>%
+  filter(month %in% c(2, 3, 4, 7, 8, 9))
+
+# Função que recebe um vetor, faz uma reamostragem desse vetor e depois
+# retorna a diferença entre a média dos meses 2, 3 e 4 e a média dos meses 7, 8 e 9.
+resample_diff <- function(dataset) {
+  sample <- sample(dataset, size = NROW(dataset), replace = TRUE)
+  months234 <- sample %>% filter(month %in% c(2,3,4))
+  months789 <- sample %>% filter(month %in% c(7,8,9))
+  mean234 <- mean(months234$users)
+  mean789 <- mean(months789$users)
+  return(mean234 - mean789)
+}
+
+# função que executa a reamostragem várias vezes e no final retorna o intervalo de confiança
+# para a diferença entre as médias dos meses.
+bootstrap_diff <- function(vector, repetitions, alpha) {
+  
+  results <- data_frame(i = 1:repetitions) %>% 
+  rowwise() %>% 
+  mutate(diff = resample_diff(vector))
+  
+  percentis = quantile(results$diff, probs = c(alpha/2, 1 - alpha/2))
+  diff <- summary(results$diff)['Median']
+  lower <- percentis[1]
+  upper <- percentis[2]
+  
+  return(c(diff = diff, lower = lower, upper = upper))
+}
+
+CI <- bootstrap_diff(dados_java_filtered, repeticoes, alpha)
+
+resultado4 <- data_frame(diff = round(CI[1]), lower = round(CI[2]), upper = round(CI[3]))
+```
+
+O gráfico abaixo mostra o resultado da execução do bootstrap
+
+```{r}
+ggplot(resultado4, aes(x = "")) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  geom_point(aes(x = "", y = diff)) +
+  labs(title = "Intervalo de confiança para a diferença das médias" , x = "Diferença", y = "Valor da diferença")
+```
+
+Observando o gráfico vemos que não há intervalo de confiança para a diferença entre as médias, mas há um ponto exato (para a nossa amostra), que é de 758. Talvez a nossa amostra nessa bastante peculiar para que haja somente um único valor possível para essa diferença que queremos calcular.
+
+De qualquer forma, respondendo à pergunta, sabemos que para este caso de java, de acordo com a nossa amostra, a diferença é de 758 alterações entre a média de alterações dos meses fevereiro, março e abril e a média de alterações dos meses julho, agosto e setembro.
 
 
 
